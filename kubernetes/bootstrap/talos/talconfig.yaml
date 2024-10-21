@@ -1,0 +1,77 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/budimanjojo/talhelper/master/pkg/config/schemas/talconfig.json
+---
+# renovate: datasource=docker depName=ghcr.io/siderolabs/installer
+talosVersion: v1.8.1
+# renovate: datasource=docker depName=ghcr.io/siderolabs/kubelet
+kubernetesVersion: v1.31.1
+
+clusterName: "dc-ops"
+endpoint: https://10.1.6.200:6443
+clusterPodNets:
+  - "10.69.0.0/16"
+clusterSvcNets:
+  - "10.96.0.0/16"
+additionalApiServerCertSans: &sans
+  - "10.1.6.200"
+  - 127.0.0.1 # KubePrism
+  - "k8s.theredone.dev"
+additionalMachineCertSans: *sans
+
+# Disable built-in Flannel to use Cilium
+cniConfig:
+  name: none
+
+nodes:
+  - hostname: "n2"
+    ipAddress: "10.1.6.102"
+    installDisk: "/dev/sda"
+    talosImageURL: factory.talos.dev/installer/0d8776d579c696463f017a646aced9c13b9ef277c497b6ddfb425938c86f07a4
+    controlPlane: true
+    networkInterfaces:
+      - deviceSelector:
+          hardwareAddr: "b8:ca:3a:6e:0f:4c"
+        vlans:
+          - vlanId: 6
+            addresses:
+              - "10.1.6.102/24"
+            mtu: 1500
+            routes:
+              - network: 0.0.0.0/0
+                gateway: "10.1.6.1"
+            vip:
+              ip: "10.1.6.200"
+
+# Global patches
+patches:
+  - # Force nameserver
+    |-
+    machine:
+      network:
+        nameservers:
+          - 1.1.1.1
+          - 8.8.8.8
+          - 1.0.0.1
+          - 8.8.4.4
+  - # Configure NTP
+    |-
+    machine:
+      time:
+        disabled: false
+        servers:
+          - time.nist.gov
+  - "@./patches/global/cluster-discovery.yaml"
+  - "@./patches/global/containerd.yaml"
+  - "@./patches/global/disable-search-domain.yaml"
+  - "@./patches/global/hostdns.yaml"
+  - "@./patches/global/kubelet.yaml"
+  - "@./patches/global/openebs-local.yaml"
+  - "@./patches/global/sysctl.yaml"
+
+# Controller patches
+controlPlane:
+  patches:
+    - "@./patches/controller/api-access.yaml"
+    - "@./patches/controller/cluster.yaml"
+    - "@./patches/controller/disable-admission-controller.yaml"
+    - "@./patches/controller/etcd.yaml"
+
